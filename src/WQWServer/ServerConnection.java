@@ -31,6 +31,7 @@ public class ServerConnection extends Thread {
     protected boolean fighting;
     protected int monkilled;
     protected int packetsend;
+    protected String[] friends = new String[20];
     pvpTimer pvpTime = new pvpTimer();
     pingTimer ping = new pingTimer();
     Random generator = new Random();
@@ -301,17 +302,15 @@ public class ServerConnection extends Thread {
                 restPlayer();
             } else if (cmd.equals("retrieveInventory")) {
                 /* Get the inventory details */
-                getInvent();
+                loadBigInventory();
             } else if (cmd.equals("retrieveUserData")) {
                 /* Send user data */
                 recvPack.removeHeader();
                 String packet_handled[] = recvPack.getPacket().split("%");
                 retrieveUserData(Integer.parseInt(packet_handled[2]), true);
-            } else if (cmd.equals("retrieveUserDatas")) {
-                /* Send user data */
+            } else if (cmd.equals("retrieveUserDatas")){
                 recvPack.removeHeader();
-                String packet_handled[] = recvPack.getPacket().split("%", 2);
-                retrieveUserDatas(packet_handled[2], true);
+                retrieveUserDatas(recvPack.getPacket());
             } else if (cmd.equals("requestFriend")) {
                 /* Add friend request */
                 recvPack.removeHeader();
@@ -944,43 +943,123 @@ public class ServerConnection extends Thread {
         }
     }
 
-    protected void getInvent()
-    {
+    protected void loadBigInventory(){
+        Packet sendPack = new Packet();
+        sendPack.addString("{\"t\":\"xt\",\"b\":{\"r\":-1,\"o\":{\"cmd\":\"loadInventoryBig\",\"friends\":[");
         try {
-            Packet sendPack = new Packet();
-            sendPack.addString("{\"t\":\"xt\",\"b\":{\"r\":-1,\"o\":{\"cmd\":\"initInventory\",\"items\":[");
-            ResultSet rs = Main.sql.doquery("SELECT * FROM wqw_items WHERE userid="+this.userid+" AND bBank=0");
-            int[] charitemid = new int[40];
-            int[] itemid = new int[40];
-            int[] equip = new int[40];
-            int[] level = new int[40];
+            ResultSet rs = Main.sql.doquery("SELECT * FROM wqw_friends WHERE userid="+this.userid);
+            if (rs.next()) {
+                if (!rs.getString("friendid").equals("")) {
+                    String[] friendslist = rs.getString("friendid").split(",");
+                    int i = friendslist.length;
+                    int e = 0;
+                    rs.close();
+                    while (e < i) {
+                        if (e != 0) {
+                            sendPack.addString(",");
+                        }
+                        ResultSet is = Main.sql.doquery("SELECT * FROM wqw_users WHERE id="+friendslist[e]);
+                        if (is.next()) {
+                            this.friends[e] = is.getString("username");
+                            sendPack.addString("{\"iLvl\":\""+is.getInt("level")+"\",\"ID\":\""+is.getInt("id")+"\",\"sName\":\""+is.getString("username")+"\",\"sServer\":\""+is.getString("curServer")+"\"}");
+                        }
+                        is.close();
+                        e++;
+                    }
+                }
+            }
+            sendPack.addString("],\"items\":[");
+
+            ResultSet rs2 = Main.sql.doquery("SELECT * FROM wqw_items WHERE sES NOT IN('hi','ho') AND userid="+this.userid+" AND bBank=0");
+            int[] charitemid = new int[265];
+            int[] itemid = new int[265];
+            int[] equip = new int[265];
+            int[] level = new int[265];
+            int[] classxp = new int[265];
+            int[] qty = new int[265];
+            int[] enhid = new int[265];
             int i = 0;
-            while (rs.next()) {
-                charitemid[i] = rs.getInt("id");
-                itemid[i] = rs.getInt("itemid");
-                equip[i] = rs.getInt("equipped");
-                level[i] = rs.getInt("iLvl");
+            while (rs2.next()) {
+                charitemid[i] = rs2.getInt("id");
+                itemid[i] = rs2.getInt("itemid");
+                equip[i] = rs2.getInt("equipped");
+                level[i] = rs2.getInt("iLvl");
+                enhid[i] = rs2.getInt("EnhID");
+                qty[i] = rs2.getInt("iQty");
+                if(rs2.getString("sES").equals("ar")){
+                    classxp[i] = rs2.getInt("classXP");
+                }
                 i++;
             }
-            rs.close();
+            rs2.close();
             int e = 0;
             while (e < i) {
-                if (e != 0) {
-                    sendPack.addString(",");
-                }
                 ResultSet is = Main.sql.doquery("SELECT * FROM wqw_equipment WHERE itemID="+itemid[e]);
                 if (is.next()) {
-                    sendPack.addString("{\"ItemID\":\""+is.getInt("itemID")+"\",\"sLink\":\""+is.getString("sLink")+"\",\"sElmt\":\""+is.getString("sElmt")+"\",\"bStaff\":\""+is.getInt("bStaff")+"\",\"iRng\":\""+is.getInt("iRng")+"\",\"iDPS\":\""+is.getInt("iDPS")+"\",\"bCoins\":\""+is.getInt("bCoins")+"\",\"sES\":\""+is.getString("sES")+"\",\"sType\":\""+is.getString("sType")+"\",\"iCost\":\""+is.getInt("iCost")+"\",\"iRty\":\""+is.getInt("iRty")+"\",\"iQty\":\""+is.getInt("iQty")+"\",\"iLvl\":\""+level[e]+"\",\"sIcon\":\""+is.getString("sIcon")+"\",\"iEnh\":\""+is.getInt("iEnh")+"\",\"bTemp\":\""+is.getInt("bTemp")+"\",\"CharItemID\":\""+charitemid[e]+"\",\"iHrs\":\""+is.getInt("iHrs")+"\",\"sFile\":\""+is.getString("sFile")+"\",\"iStk\":\""+is.getInt("iStk")+"\",\"sDesc\":\""+is.getString("sDesc")+"\",\"bBank\":\""+0+"\",\"bUpg\":\""+is.getInt("bUpg")+"\",\"bEquip\":\""+equip[e]+"\",\"sName\":\""+is.getString("sName")+"\"}");
+                    if (e != 0) {
+                        sendPack.addString(",");
+                    }
+                    sendPack.addString("{\"ItemID\":\""+is.getInt("itemID")+"\",\"sLink\":\""+is.getString("sLink")+"\",\"sElmt\":\""+is.getString("sElmt")+"\",\"bStaff\":\""+is.getInt("bStaff")+"\",\"iRng\":\""+is.getInt("iRng")+"\",\"iDPS\":\""+is.getInt("iDPS")+"\",\"bCoins\":\""+is.getInt("bCoins")+"\",\"sES\":\""+is.getString("sES")+"\",\"sType\":\""+is.getString("sType")+"\",\"iCost\":\""+is.getInt("iCost")+"\",\"iRty\":\""+is.getInt("iRty")+"\",");
+                    if(is.getString("sES").equals("ar")){
+                        sendPack.addString("\"iQty\":\""+classxp[e]+"\",");
+                    } else {
+                        sendPack.addString("\"iQty\":\""+qty[e]+"\",");
+                    }
+                    if(is.getString("sES").equals("Weapon")){
+                        sendPack.addString("\"EnhDPS\":\"100\",");
+                    }
+                    if(is.getString("sType").equals("Enhancement") || is.getString("sType").equals("Necklace") || is.getString("sType").equals("Item") || is.getString("sType").equals("Quest Item") || is.getString("sType").equals("Pet") || is.getString("sType").equals("Armor")){
+                            sendPack.addString("\"EnhID\":\"0\",\"PatternID\":\""+enhid[e]+"\",");
+                    }
+
+                    if(is.getString("sType").equals("Enhancement") || enhid[e]==-1){
+                        sendPack.addString("\"iLvl\":\""+is.getInt("iLvl"));
+                    } else {
+                        sendPack.addString("\"EnhLvl\":\""+level[e]+"\",\"EnhID\":\"1863\",\"EnhRty\":1,\"EnhPatternID\":\""+enhid[e]);
+                    }
+                    sendPack.addString("\",\"sIcon\":\""+is.getString("sIcon")+"\",\"bTemp\":\""+is.getInt("bTemp")+"\",\"CharItemID\":\""+charitemid[e]+"\",\"iHrs\":\""+is.getInt("iHrs")+"\",\"sFile\":\""+is.getString("sFile")+"\",\"iStk\":\""+is.getInt("iStk")+"\",\"sDesc\":\""+is.getString("sDesc")+"\",\"bBank\":\""+0+"\",\"bUpg\":\""+is.getInt("bUpg")+"\",\"bEquip\":\""+equip[e]+"\",\"sName\":\""+is.getString("sName")+"\"}");
                 }
                 is.close();
                 e++;
             }
+
+            sendPack.addString("],\"factions\":[],\"hitems\":[");
+            ResultSet hs = Main.sql.doquery("SELECT * FROM wqw_items WHERE sES IN('hi','ho') AND userid="+this.userid+" AND bBank=0");
+            int x=0;
+            int[] hequip = new int[30];
+            int[] hcharitemid = new int[30];
+            int[] hitemid = new int[30];
+            while (hs.next()) {
+                hequip[x] = hs.getInt("equipped");
+                hcharitemid[x] = hs.getInt("id");
+                hitemid[x] = hs.getInt("itemid");
+                x++;
+            }
+            int z = 0;
+            while (z < x) {
+                ResultSet is = Main.sql.doquery("SELECT * FROM wqw_equipment WHERE itemid="+hitemid[z]);
+                if (is.next()) {
+                    if (z != 0) {
+                        sendPack.addString(",");
+                    }
+                    sendPack.addString("{\"ItemID\":\""+is.getInt("itemID")+"\",\"sLink\":\""+is.getString("sLink")+"\",\"sElmt\":\""+is.getString("sElmt")+"\",\"bStaff\":\""+is.getInt("bStaff")+"\",\"iRng\":\""+is.getInt("iRng")+"\",\"iDPS\":\""+is.getInt("iDPS")+"\",\"bCoins\":\""+is.getInt("bCoins")+"\",\"sES\":\""+is.getString("sES")+"\",\"sType\":\""+is.getString("sType")+"\",\"iCost\":\""+is.getInt("iCost")+"\",\"iRty\":\""+is.getInt("iRty")+"\",");
+                    sendPack.addString("\"iQty\":\"1\",");
+                    sendPack.addString("\"iLvl\":\""+is.getInt("iLvl"));
+                    sendPack.addString("\",\"sIcon\":\""+is.getString("sIcon")+"\",\"bTemp\":\""+is.getInt("bTemp")+"\",\"CharItemID\":\""+hcharitemid[z]+"\",\"iHrs\":\""+is.getInt("iHrs")+"\",\"sFile\":\""+is.getString("sFile")+"\",\"iStk\":\""+is.getInt("iStk")+"\",\"sDesc\":\""+is.getString("sDesc")+"\",\"bBank\":\""+0+"\",\"bUpg\":\""+is.getInt("bUpg")+"\",\"bEquip\":\""+hequip[z]+"\",\"sName\":\""+is.getString("sName")+"\"}");
+                }
+                is.close();
+                z++;
+            }
             sendPack.addString("]}}}");
             send(sendPack, true);
+            sendPack.clean();
+            sendPack.addString("%xt%server%-1%Character load complete.%");
+            send(sendPack, true);
         } catch (Exception e) {
-            debug("Exception in get invent: "+e.getMessage());
+            debug("Exception in load big inventory: "+e.getMessage());
         }
     }
+
 
     protected String getMessage()
     {
@@ -1533,154 +1612,161 @@ public class ServerConnection extends Thread {
         gameServer.writePlayerPacket(otherchar, sendPack, true);
     }
 
-    protected void retrieveUserDatas(String ids, boolean doAgain)
-    {
-        String[] users = ids.split("%");
-
-        for(int i = 0; i < users.length; i++){
-            //TODO
+    boolean isInteger(String input){
+        try{
+            Integer.parseInt(input);
+            return true;
         }
-
-        /*int uid = id;
-        try {
-            int id = gameServer.userID[id2];
-            if (id > 0) {
-                debug("Attempting to retrieve user data: "+id+", "+gameServer.charName[id2]);
-                int cp = getClassPoints(id);
-                String cn = getClassName(id);
-                String equip = getEquipment(id);
-                Packet sendPack = new Packet();
-                Room room = this.playerRoom; //gameServer.room[gameServer.getPlayerRoom(user)[0]][gameServer.getPlayerRoom(user)[1]];
-                ResultSet rs = Main.sql.doquery("SELECT * FROM wqw_users WHERE id="+id);
-                if (rs.next()) {
-                    String user = rs.getString("username");
-                    user = user.toLowerCase();
-                    int slot = room.getPlayerSlot(user);
-                    int level = rs.getInt("level");
-                    if (id == this.userid) {
-                        this.playerlevel = level;
+        catch(NumberFormatException nfe){
+            return false;
+        }
+    }
+    protected void retrieveUserDatas(String Packet)
+    {
+        try
+        {
+            String packet_handled[] = Packet.split("%");
+            Packet sendPack = new Packet();
+            sendPack.addString("{\"t\":\"xt\",\"b\":{\"r\":-1,\"o\":{\"cmd\":\"initUserDatas\",\"a\":[");
+            for (int i = 2; i < packet_handled.length; i++) {
+                if(isInteger(packet_handled[i])){
+                    if(i != 2){
+                        sendPack.addString(",");
                     }
-                    sendPack.addString("{\"t\":\"xt\",\"b\":{\"r\":-1,\"o\":{\"uid\":");
-                    sendPack.addInt(gameServer.getPlayerID(user));
-                    sendPack.addString(",\"strFrame\":\"");
-                    sendPack.addString(room.frame[slot]);
-                    sendPack.addString("\",\"cmd\":\"initUserData\",\"strPad\":\"");
-                    sendPack.addString(room.pad[slot]);
-                    sendPack.addString("\",\"data\":{\"intColorAccessory\":\"");
-                    sendPack.addInt(rs.getInt("cosColorAccessory"));
-                    sendPack.addString("\",\"iCP\":");
-                    sendPack.addInt(cp);
-                    sendPack.addString(",\"intLevel\":\"");
-                    sendPack.addInt(level);
-                    sendPack.addString("\",\"iBagSlots\":");
-                    sendPack.addInt(rs.getInt("slotBag"));
-                    sendPack.addString(",\"ig0\":0,\"iUpgDays\":\"-");
-                    sendPack.addInt(rs.getInt("upgDays"));
-                    sendPack.addString("\",\"intColorBase\":\"");
-                    sendPack.addInt(rs.getInt("cosColorBase"));
-                    sendPack.addString("\",\"iSTR\":\"");
-                    sendPack.addInt(rs.getInt("str"));
-                    sendPack.addString("\",\"ip0\":0,\"iq0\":0,\"iAge\":\"");
-                    sendPack.addInt(rs.getInt("age"));
-                    sendPack.addString("\",\"iWIS\":\"");
-                    sendPack.addInt(rs.getInt("WIS"));
-                    sendPack.addString("\",\"intExpToLevel\":\"");
-                    sendPack.addInt(getXpToLevel(level)); //Calculate this
-                    sendPack.addString("\",\"intGold\":");
-                    sendPack.addInt(rs.getInt("gold"));
-                    sendPack.addString(",\"intMP\":");
-                    sendPack.addInt(19+level); //Calculate this
-                    sendPack.addString(",\"iBankSlots\":");
-                    sendPack.addInt(rs.getInt("slotBank"));
-                    sendPack.addString(",\"iHouseSlots\":");
-                    sendPack.addInt(rs.getInt("slotHouse"));
-                    sendPack.addString(",\"id0\":0,\"intColorSkin\":\"");
-                    sendPack.addInt(rs.getInt("plaColorSkin"));
-                    sendPack.addString("\",\"intMPMax\":");
-                    sendPack.addInt(19+level); //Calculate this
-                    sendPack.addString(",\"intHPMax\":");
-                    sendPack.addInt(700+((level+1)*20)); //Calculate this
-                    sendPack.addString(",\"dUpgExp\":\"");
-                    sendPack.addString(rs.getString("upgDate"));
-                    sendPack.addString("\",\"iUpg\":\"");
-                    sendPack.addInt(rs.getInt("upgrade"));
-                    sendPack.addString("\",\"CharID\":\"");
-                    sendPack.addInt(id);
-                    sendPack.addString("\",\"strClassName\":\"");
-                    sendPack.addString(cn);
-                    sendPack.addString("\",\"iINT\":\"");
-                    sendPack.addInt(rs.getInt("INT"));
-                    sendPack.addString("\",\"ItemID\":\"");
-                    sendPack.addInt(rs.getInt("currentClass"));
-                    sendPack.addString("\",\"lastArea\":\"");
-                    sendPack.addString(rs.getString("lastVisited"));
-                    sendPack.addString("\",\"intColorTrim\":\"");
-                    sendPack.addInt(rs.getInt("cosColorTrim"));
-                    sendPack.addString("\",\"intDBExp\":");
-                    sendPack.addInt(rs.getInt("xp"));
-                    sendPack.addString(",\"intExp\":");
-                    sendPack.addInt(rs.getInt("xp"));
-                    sendPack.addString(",\"UserID\":\"");
-                    sendPack.addInt(id);
-                    sendPack.addString("\",\"ia1\":\"0\",\"ia0\":0,\"intHP\":");
-                    sendPack.addInt(700+((level+1)*20)); //Calculate this
-                    sendPack.addString(",\"strQuests\":\"000000000000000000000QT000000000000000000000000000\",\"bitSuccess\":\"1\",\"strHairName\":\"");
-                    sendPack.addString(rs.getString("hairName"));
-                    sendPack.addString("\",\"intColorEye\":\"");
-                    sendPack.addInt(rs.getInt("plaColorEyes"));
-                    sendPack.addString("\",\"iLCK\":\"");
-                    sendPack.addInt(rs.getInt("LCK"));
-                    sendPack.addString("\",\"eqp\":{");
-                    sendPack.addString(equip);
-                    sendPack.addString("},\"iDBCP\":");
-                    sendPack.addInt(cp);
-                    sendPack.addString(",\"intDBGold\":");
-                    sendPack.addInt(rs.getInt("LCK"));
-                    sendPack.addString(",\"intActivationFlag\":\"");
-                    sendPack.addInt(rs.getInt("emailActive"));
-                    sendPack.addString("\",\"intAccessLevel\":\"");
-                    sendPack.addInt(rs.getInt("access"));
-                    sendPack.addString("\",\"strHairFilename\":\"");
-                    sendPack.addString(rs.getString("hairFile"));
-                    sendPack.addString("\",\"intColorHair\":\"");
-                    sendPack.addInt(rs.getInt("plaColorHair"));
-                    sendPack.addString("\",\"HairID\":\"");
-                    sendPack.addInt(rs.getInt("hairID"));
-                    sendPack.addString("\",\"strGender\":\"");
-                    sendPack.addString(rs.getString("gender"));
-                    sendPack.addString("\",\"strUsername\":\"");
-                    sendPack.addString(user);
-                    sendPack.addString("\",\"iDEX\":\"");
-                    sendPack.addInt(rs.getInt("DEX"));
-                    sendPack.addString("\",\"intCoins\":");
-                    sendPack.addInt(rs.getInt("coins"));
-                    sendPack.addString(",\"iEND\":\"");
-                    sendPack.addInt(rs.getInt("END"));
-                    sendPack.addString("\",\"strMapName\":\"");
-                    sendPack.addString(room.roomName);
-                    sendPack.addString("\"}}}}");
-                    send(sendPack,true);
-                    sendPack.clean();
-                    debug("Sent user data: "+id2);
+
+                    sendPack.addString("{");
+                    int pID = Integer.parseInt(packet_handled[i]);
+                    int id = gameServer.userID[pID];
+
+                    debug("Retrieving user data for uID: "+id+", pID: "+pID+", Character: "+gameServer.charName[pID]);
+
+                    int classPoints = gameServer.getClassPoints(id);
+                    String className = getClassName(id);
+                    String equipment = getEquipment(id);
+                    Room room = this.playerRoom;
+                    ResultSet rs = Main.sql.doquery("SELECT * FROM wqw_users WHERE id="+id+" LIMIT 1");
+
+                    if(rs.next()){
+                        String userName = rs.getString("username").toLowerCase();
+                        int playerslot = room.getPlayerSlot(userName);
+                        int playerLevel = rs.getInt("level");
+                        if(userName.equals(this.account)){
+                            this.playerlevel = playerLevel;
+                        }
+                        sendPack.addString("\"uid\":");
+                        sendPack.addInt(gameServer.getPlayerID(userName));
+                        sendPack.addString(",\"strFrame\":");
+                        sendPack.addString("\"" + room.frame[playerslot] + "\"");
+                        sendPack.addString(",\"strPad\":");
+                        sendPack.addString("\"" + room.pad[playerslot] + "\"");
+                        sendPack.addString(",\"data\":{\"intColorAccessory\":\"");
+                        sendPack.addInt(rs.getInt("cosColorAccessory"));
+                        sendPack.addString("\",\"iCP\":");
+                        sendPack.addInt(classPoints);
+                        sendPack.addString(",\"intLevel\":\"");
+                        sendPack.addInt(playerLevel);
+                        sendPack.addString("\",\"iBagSlots\":");
+                        sendPack.addInt(rs.getInt("slotBag"));
+                        sendPack.addString(",\"ig0\":0,\"iUpgDays\":\"-");
+                        sendPack.addInt(rs.getInt("upgDays"));
+                        sendPack.addString("\",\"intColorBase\":\"");
+                        sendPack.addInt(rs.getInt("cosColorBase"));
+                        sendPack.addString("\",\"sCountry\":\"US\"");
+                        sendPack.addString(",\"iSTR\":\"");
+                        sendPack.addInt(rs.getInt("str"));
+                        sendPack.addString("\",\"ip0\":0,\"iq0\":0,\"iAge\":\"");
+                        sendPack.addInt(rs.getInt("age"));
+                        sendPack.addString("\",\"iWIS\":\"");
+                        sendPack.addInt(rs.getInt("WIS"));
+                        sendPack.addString("\",\"intExpToLevel\":\"");
+                        sendPack.addInt(getXpToLevel(playerLevel)); //Calculate this
+                        sendPack.addString("\",\"intGold\":");
+                        sendPack.addInt(rs.getInt("gold"));
+                        sendPack.addString(",\"intMP\":");
+                        sendPack.addInt(gameServer.calculateMP(playerLevel)); //Calculate this
+                        sendPack.addString(",\"sHouseInfo\":[]");
+                        sendPack.addString(",\"iBankSlots\":");
+                        sendPack.addInt(rs.getInt("slotBank"));
+                        sendPack.addString(",\"iHouseSlots\":");
+                        sendPack.addInt(rs.getInt("slotHouse"));
+                        sendPack.addString(",\"id0\":0,\"intColorSkin\":\"");
+                        sendPack.addInt(rs.getInt("plaColorSkin"));
+                        sendPack.addString("\",\"intMPMax\":");
+                        sendPack.addInt(gameServer.calculateMP(playerLevel)); //Calculate this
+                        sendPack.addString(",\"intHPMax\":");
+                        sendPack.addInt(gameServer.calculateHP(playerLevel)); //Calculate this
+                        sendPack.addString(",\"dUpgExp\":\"");
+                        sendPack.addString("2012-01-20T17:53:00"/*+rs.getString("upgDate")*/);
+                        sendPack.addString("\",\"iUpg\":\"");
+                        sendPack.addInt(rs.getInt("upgrade"));
+                        sendPack.addString("\",\"CharID\":\"");
+                        sendPack.addInt(id);
+                        sendPack.addString("\",\"strEmail\":\"none\"");
+                        sendPack.addString(",\"iINT\":\"");
+                        sendPack.addInt(rs.getInt("INT"));
+                        sendPack.addString("\",\"intColorTrim\":\"");
+                        sendPack.addInt(rs.getInt("cosColorTrim"));
+                        sendPack.addString("\",\"lastArea\":\"");
+                        sendPack.addString(rs.getString("lastVisited"));
+                        sendPack.addString("\",\"iFounder\":\"1\"");
+                        sendPack.addString(",\"intDBExp\":");
+                        sendPack.addInt(rs.getInt("xp"));
+                        sendPack.addString(",\"intExp\":");
+                        sendPack.addInt(rs.getInt("xp"));
+                        sendPack.addString(",\"UserID\":\"");
+                        sendPack.addInt(id);
+                        sendPack.addString("\",\"ia1\":\"0\",\"ia0\":0,\"intHP\":");
+                        sendPack.addInt(gameServer.calculateHP(playerLevel)); //Calculate this
+                        sendPack.addString(",\"dCreated\":\"0000-00-00T00:00:00\"");
+                        sendPack.addString(",\"strQuests\":\"ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ\",\"bitSuccess\":\"1\",\"strHairName\":\"");
+                        sendPack.addString(rs.getString("hairName"));
+                        sendPack.addString("\",\"intColorEye\":\"");
+                        sendPack.addInt(rs.getInt("plaColorEyes"));
+                        sendPack.addString("\",\"iLCK\":\"");
+                        sendPack.addInt(rs.getInt("LCK"));
+                        sendPack.addString("\",\"eqp\":{");
+                        sendPack.addString(equipment);
+                        sendPack.addString("},\"iDBCP\":");
+                        sendPack.addInt(classPoints);
+                        sendPack.addString(",\"intDBGold\":");
+                        sendPack.addInt(rs.getInt("gold"));
+                        sendPack.addString(",\"strClassName\":\"");
+                        sendPack.addString(className);
+                        sendPack.addString("\",\"intActivationFlag\":\"");
+                        sendPack.addInt(rs.getInt("emailActive"));
+                        sendPack.addString("\",\"intAccessLevel\":\"");
+                        sendPack.addInt(rs.getInt("access"));
+                        sendPack.addString("\",\"strHairFilename\":\"");
+                        sendPack.addString(rs.getString("hairFile"));
+                        sendPack.addString("\",\"intColorHair\":\"");
+                        sendPack.addInt(rs.getInt("plaColorHair"));
+                        sendPack.addString("\",\"HairID\":\"");
+                        sendPack.addInt(rs.getInt("hairID"));
+                        sendPack.addString("\",\"strGender\":\"");
+                        sendPack.addString(rs.getString("gender"));
+                        sendPack.addString("\",\"strUsername\":\"");
+                        sendPack.addString(userName);
+                        sendPack.addString("\",\"iDEX\":\"");
+                        sendPack.addInt(rs.getInt("DEX"));
+                        sendPack.addString("\",\"intCoins\":");
+                        sendPack.addInt(rs.getInt("coins"));
+                        sendPack.addString(",\"iEND\":\"");
+                        sendPack.addInt(rs.getInt("END"));
+                        sendPack.addString("\",\"strMapName\":\"");
+                        sendPack.addString(room.roomName + "\"");
+                    }
+                    sendPack.addString("}}");
                     rs.close();
                 }
             }
-        } catch (Exception e) {
-            debug("Exception in retrieve user data: "+e.getMessage()+", uid: "+uid);
-            try {
-                Thread.sleep(200);
-            } catch (Exception e2) {
-                debug("retrieveUserData sleep failed: "+e2.getMessage());
-            }
-            if (doAgain) {
-                retrieveUserData(uid, false);
-            } else {
-                if (gameServer.userID[id2] == this.userid) {
-                    this.finalize();
-                }
-            }
+            sendPack.addString("]}}}");
+            send(sendPack, true);
+            sendPack.clean();
         }
-        */
+        catch(Exception e)
+        {
+            debug("Exception in retrieve user datas: "+e.getMessage()+", uid: "+Packet);
+        }
     }
 
     protected void retrieveUserData(int id2, boolean doAgain)
@@ -1831,17 +1917,33 @@ public class ServerConnection extends Thread {
         try {
             int sellprice = 0;
             int iscoins = 0;
+            int qty = 1;
+            String isitem="";
             Packet sendPack = new Packet();
-            ResultSet es = Main.sql.doquery("SELECT * FROM wqw_equipment WHERE itemid="+itemid+" LIMIT 1");
+            ResultSet es = Main.sql.doquery("SELECT * FROM wqw_equipment WHERE itemid="+itemid);
             if (es.next()) {
                 sellprice = es.getInt("iCost")/4;
                 iscoins = es.getInt("bCoins");
+                isitem = es.getString("sType");
+                qty = es.getInt("iQty");
             }
             es.close();
-            ResultSet rs = Main.sql.doquery("SELECT * FROM wqw_items WHERE userid="+this.userid+" AND id="+adjustid+" AND equipped=0 AND itemid="+itemid+" LIMIT 1");
+            ResultSet rs = Main.sql.doquery("SELECT * FROM wqw_items WHERE userid="+this.userid+" AND id="+adjustid+" AND equipped=0 AND itemid="+itemid);
             if (rs.next()) {
-                Main.sql.doupdate("DELETE FROM wqw_items WHERE id="+adjustid);
-                Main.sql.doupdate("UPDATE wqw_users SET gold=gold+"+sellprice+" WHERE id="+this.userid);
+
+                if(iscoins!=1){
+                    Main.sql.doupdate("UPDATE wqw_users SET gold=gold+"+sellprice+" WHERE id="+this.userid);
+                }else{
+                    Main.sql.doupdate("UPDATE wqw_users SET coins=coins+"+sellprice+" WHERE id="+this.userid);
+                }
+                if(isitem.equals("Item") || isitem.equals("Quest Item")){
+                    Main.sql.doupdate("UPDATE wqw_items SET iQty=iQty-1 WHERE itemid="+itemid+" AND userid="+this.userid);
+                    if(qty==1){
+                        Main.sql.doupdate("DELETE FROM wqw_items WHERE id="+adjustid);
+                    }
+                } else {
+                    Main.sql.doupdate("DELETE FROM wqw_items WHERE id="+adjustid);
+                }
                 sendPack.addString("{\"t\":\"xt\",\"b\":{\"r\":-1,\"o\":{\"cmd\":\"sellItem\",\"intAmount\":"+sellprice+",\"CharItemID\":"+adjustid+",\"bCoins\":\""+iscoins+"\"}}}");
             } else {
                 sendPack.addString("{\"t\":\"xt\",\"b\":{\"r\":-1,\"o\":{\"cmd\":\"sellItem\",\"bitSuccess\":0,\"strMessage\":\"Item Does Not Exist\",\"CharItemID\":-1}}}");

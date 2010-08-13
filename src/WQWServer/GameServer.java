@@ -188,6 +188,37 @@ public class GameServer {
         return 0;
     }
 
+    protected int calculateHP(int level)
+    {
+        if(level > 19)
+        {
+             return (int)(Math.round(350 + Math.pow((double)level / 100, 1.1) * 3650));
+        } else if(level > 7){
+             return (int)(Math.round(720 + Math.pow((double)level / 20, 0.92) * 200));
+        } else {
+             return (int)(Math.round(550 + Math.pow((double)level / 8, 0.8) * 275));
+        }
+    }
+
+    protected int calculateMP(int level)
+    {
+        return 100+((level+1)*20);
+    }
+
+    protected int getClassPoints(int id)
+    {
+        try {
+            ResultSet rs = Main.sql.doquery("SELECT * FROM wqw_items WHERE userid="+id+" AND equipped=1 AND sES='ar'");
+            if (rs.next()) {
+                return rs.getInt("classXP");
+            }
+            rs.close();
+        } catch (Exception e) {
+            debug("Exception in get class points: "+e.getMessage());
+        }
+        return -1;
+    }
+
     protected boolean checkInUse(Socket socket)
     {
         for (int i = 1; i < 256; i++) {
