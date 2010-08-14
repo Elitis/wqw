@@ -105,9 +105,18 @@ public class Packet {
 
     public String getCDATA(String string)
     {
+        String toReturn;
+
         int startPos = string.indexOf("CDATA[") + 6;
         int endPos = string.indexOf("]", startPos);
-        return string.substring(startPos,endPos);
+
+        toReturn = string.substring(startPos,endPos);
+
+        if(string.contains("N5O8S4M4J7N4B3B6K7")){
+            return toReturn.split("~")[1];
+        }
+
+        return toReturn;
     }
 
     public void addString(String string)
