@@ -743,9 +743,6 @@ public class ServerConnection extends Thread {
 
     protected void doLogin(String user, String pass, boolean repeat)
     {
-        String[] us = user.split("~");
-        user = us[1];
-
         Packet sendPack = new Packet();
 
         sendPack.addString("%xt%server%-1%Accepting party invites.%");
@@ -829,11 +826,19 @@ public class ServerConnection extends Thread {
             sendPack.addInt(this.accountid);
             ResultSet rs = Main.sql.doquery("SELECT * FROM wqw_equipment WHERE itemID="+itemid);
             if (rs.next()) {
-                sendPack.addString(",\"ItemID\":\""+itemid+"\",\"strES\":\""+rs.getString("sES")+"\",\"cmd\":\"equipItem\",\"sFile\":\""+rs.getString("sFile")+"\",\"sLink\":\""+rs.getString("sLink")+"\"}}}");
+                sendPack.addString(",\"ItemID\":\""+itemid+"\",\"strES\":\""+rs.getString("sES")+"\",\"cmd\":\"equipItem\",\"sFile\":\""+rs.getString("sFile")+"\",\"sLink\":\""+rs.getString("sLink")+"\"");
+                if(rs.getString("sES").equals("Weapon")){
+                    sendPack.addString(",\"sType\":\""+rs.getString("sType")+"\"");
+                }
+                sendPack.addString("}}}");
             }
             String type = rs.getString("sES");
+            String classname=rs.getString("sName");
             rs.close();
 
+
+            Main.sql.doupdate("UPDATE wqw_items SET equipped=0 WHERE userid="+this.userid+" AND equipped=1 AND sES='"+type+"'");
+            Main.sql.doupdate("UPDATE wqw_items SET equipped=1 WHERE userid="+this.userid+" AND itemid="+itemid+" AND equipped=0");
             if (type.equals("Weapon")) {
                 ResultSet is = Main.sql.doquery("SELECT * FROM wqw_items WHERE id="+adjustid);
                 if (is.next()) {
@@ -841,11 +846,11 @@ public class ServerConnection extends Thread {
                 }
                 is.close();
             }
-            Main.sql.doupdate("UPDATE wqw_items SET equipped=0 WHERE userid="+this.userid+" AND equipped=1 AND sES='"+type+"'");
-            Main.sql.doupdate("UPDATE wqw_items SET equipped=1 WHERE userid="+this.userid+" AND id="+adjustid);
             gameServer.writeMapPacket(this.account, sendPack, true, false);
             sendPack.clean();
-            
+            if (type.equals("ar")) {
+                Main.sql.doupdate("UPDATE wqw_items SET className='"+classname+"' WHERE userid="+this.userid+" AND sES='ar' AND equipped=1");
+            }
         } catch (Exception e) {
             debug("Exception in equip item: "+e.getMessage()+", itemid: "+itemid+", adjustid: "+adjustid);
         }
@@ -2338,7 +2343,6 @@ public class ServerConnection extends Thread {
         this.playerRoom.ty[this.playerSlot] = ty;
         gameServer.writeMapPacket(this.account,sendPack,true,!cansee);
         sendPack.clean();
-        debug("Sent move: "+this.account);
     }
 
     protected void whisperChat(String message, String otheruser)
