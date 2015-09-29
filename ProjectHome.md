@@ -1,0 +1,1 @@
+The development of an AdventureQuest Worlds emulator to work with the latest client 1.0.
